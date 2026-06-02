@@ -1580,8 +1580,12 @@ document.getElementById('contactForm').addEventListener('submit', async function
   const btn = document.getElementById('formSubmit');
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
-  document.getElementById('formSuccess').className = 'form-notice';
-  document.getElementById('formError').className = 'form-notice';
+  const successNotice = document.getElementById('formSuccess');
+  const errorNotice = document.getElementById('formError');
+  successNotice.className = 'form-notice';
+  successNotice.style.display = 'none';
+  errorNotice.className = 'form-notice';
+  errorNotice.style.display = 'none';
 
   try {
     const res = await fetch(`${BACKEND_URL}/api/contact`, {
@@ -1595,13 +1599,16 @@ document.getElementById('contactForm').addEventListener('submit', async function
       })
     });
     if (res.ok) {
-      document.getElementById('formSuccess').className = 'form-notice success';
+      successNotice.className = 'form-notice success';
+      successNotice.style.display = 'flex';
       this.reset();
+      successNotice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
       throw new Error('Server error');
     }
   } catch {
-    document.getElementById('formError').className = 'form-notice fail';
+    errorNotice.className = 'form-notice fail';
+    errorNotice.style.display = 'flex';
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Message';

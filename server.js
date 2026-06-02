@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const messages = [];
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
   : ['http://localhost:3000', 'http://localhost:5173'];
@@ -24,8 +25,36 @@ app.use(cors({
   }
 }));
 
+function requireAdmin(req, res, next) {
+  if (!process.env.ADMIN_KEY) {
+    next();
+    return;
+  }
+
+  const providedKey = req.get('x-admin-key');
+  if (providedKey === process.env.ADMIN_KEY) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ success: false, message: 'Unauthorized.' });
+}
+
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    service: 'sabri-portfolio-backend',
+    endpoints: ['/health', '/api/contact', '/api/messages'],
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/health', (req, res) => {
   res.json({ success: true, service: 'sabri-portfolio-backend', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/messages', requireAdmin, (req, res) => {
+  res.json({ success: true, count: messages.length, messages });
 });
 
 app.post(
@@ -40,14 +69,22 @@ app.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { name, email, subject, message } = req.body;
+    const messageRecord = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: req.body.name,
+      email: req.body.email,
+      subject: req.body.subject || 'Portfolio contact',
+      message: req.body.message,
+      createdAt: new Date().toISOString()
+    };
 
-    // Render logs can be checked until an email provider is connected.
-    console.log('New portfolio message:', { name, email, subject: subject || 'Portfolio contact', message });
+    messages.unshift(messageRecord);
+    console.log('New portfolio message:', messageRecord);
 
     return res.status(201).json({
       success: true,
-      message: 'Message received. Sabri will respond soon.'
+      message: 'Message received. Sabri will respond soon.',
+      data: messageRecord
     });
   }
 );

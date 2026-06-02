@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sabri Portfolio Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0d12;
+      --panel: #111722;
+      --panel2: #151d2a;
+      --border: #253044;
+      --text: #edf2f7;
+      --muted: #98a6b8;
+      --accent: #4f8ef7;
+      --success: #34d399;
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem clamp(1rem, 4vw, 3rem);
+      border-bottom: 1px solid var(--border);
+      background: rgba(17, 23, 34, 0.9);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(12px);
+      z-index: 2;
+    }
+    h1 { margin: 0; font-size: clamp(1.25rem, 3vw, 1.8rem); }
+    .actions { display: flex; gap: 0.75rem; align-items: center; }
+    button, a.button {
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    main { width: min(1100px, calc(100% - 2rem)); margin: 2rem auto; }
+    .status {
+      margin-bottom: 1rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .grid { display: grid; gap: 1rem; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .name { font-weight: 800; }
+    .email, .date, .empty, .error { color: var(--muted); font-size: 0.9rem; }
+    .subject { color: var(--accent); font-weight: 700; margin-bottom: 0.5rem; }
+    .message { white-space: pre-wrap; line-height: 1.6; }
+    .error { color: var(--danger); }
+    input {
+      background: #090d14;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.7rem 0.85rem;
+      min-width: min(280px, 100%);
+    }
+    @media (max-width: 640px) {
+      header, .card-head { align-items: flex-start; flex-direction: column; }
+      .actions { width: 100%; flex-wrap: wrap; }
+      button, a.button, input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Messages Admin</h1>
+      <div class="email">Sabri Portfolio Contact Inbox</div>
+    </div>
+    <div class="actions">
+      <input id="adminKey" type="password" placeholder="Admin key optional" autocomplete="off" />
+      <button class="primary" id="refreshBtn">Refresh</button>
+      <a class="button" href="/">Site</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="status">
+      <span id="statusText">Loading messages...</span>
+      <span>Backend: <span id="backendText"></span></span>
+    </div>
+    <div class="grid" id="messagesGrid"></div>
+  </main>
+
+  <script>
+    const BACKEND_URL = 'https://sabri-portfolio-backend.onrender.com';
+    const grid = document.getElementById('messagesGrid');
+    const statusText = document.getElementById('statusText');
+    const adminKeyInput = document.getElementById('adminKey');
+    document.getElementById('backendText').textContent = BACKEND_URL;
+
+    adminKeyInput.value = localStorage.getItem('sabriAdminKey') || '';
+    adminKeyInput.addEventListener('change', () => {
+      localStorage.setItem('sabriAdminKey', adminKeyInput.value.trim());
+    });
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>'"]/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+      }[char]));
+    }
+
+    function renderMessages(messages) {
+      if (!messages.length) {
+        grid.innerHTML = '<div class="card empty">No messages yet. Submit a test message from the contact form.</div>';
+        return;
+      }
+
+      grid.innerHTML = messages.map((item) => `
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <div class="name">${escapeHtml(item.name)}</div>
+              <div class="email">${escapeHtml(item.email)}</div>
+            </div>
+            <div class="date">${new Date(item.createdAt).toLocaleString()}</div>
+          </div>
+          <div class="subject">${escapeHtml(item.subject || 'Portfolio contact')}</div>
+          <div class="message">${escapeHtml(item.message)}</div>
+        </article>
+      `).join('');
+    }
+
+    async function loadMessages() {
+      statusText.textContent = 'Loading messages...';
+      grid.innerHTML = '';
+      try {
+        const headers = {};
+        const key = adminKeyInput.value.trim();
+        if (key) headers['x-admin-key'] = key;
+
+        const response = await fetch(`${BACKEND_URL}/api/messages`, { headers });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Failed to load messages.');
+        }
+
+        statusText.textContent = `${data.count} message${data.count === 1 ? '' : 's'} found`;
+        renderMessages(data.messages);
+      } catch (error) {
+        statusText.textContent = 'Could not load messages.';
+        grid.innerHTML = `<div class="card error">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', loadMessages);
+    loadMessages();
+  </script>
+</body>
+</html>
