@@ -16,7 +16,6 @@
       --text: #edf2f7;
       --muted: #98a6b8;
       --accent: #4f8ef7;
-      --success: #34d399;
       --danger: #f87171;
     }
     * { box-sizing: border-box; }
@@ -41,7 +40,7 @@
       z-index: 2;
     }
     h1 { margin: 0; font-size: clamp(1.25rem, 3vw, 1.8rem); }
-    .actions { display: flex; gap: 0.75rem; align-items: center; }
+    .actions, .login-actions { display: flex; gap: 0.75rem; align-items: center; }
     button, a.button {
       border: 1px solid var(--border);
       background: var(--panel2);
@@ -53,7 +52,28 @@
       text-decoration: none;
     }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.danger { color: #fff; background: var(--danger); border-color: var(--danger); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
     main { width: min(1100px, calc(100% - 2rem)); margin: 2rem auto; }
+    .login-panel, .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .login-panel { max-width: 460px; margin: 4rem auto; }
+    .login-panel h2 { margin: 0 0 0.5rem; }
+    .login-panel p { margin: 0 0 1rem; color: var(--muted); }
+    .field { display: grid; gap: 0.4rem; margin-bottom: 0.9rem; }
+    label { color: var(--muted); font-size: 0.85rem; font-weight: 700; }
+    input {
+      background: #090d14;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.8rem 0.9rem;
+      width: 100%;
+    }
     .status {
       margin-bottom: 1rem;
       color: var(--muted);
@@ -63,12 +83,6 @@
       flex-wrap: wrap;
     }
     .grid { display: grid; gap: 1rem; }
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1rem;
-    }
     .card-head {
       display: flex;
       justify-content: space-between;
@@ -77,23 +91,17 @@
       padding-bottom: 0.75rem;
       margin-bottom: 0.75rem;
     }
+    .message-actions { display: flex; gap: 0.5rem; align-items: flex-start; }
     .name { font-weight: 800; }
     .email, .date, .empty, .error { color: var(--muted); font-size: 0.9rem; }
     .subject { color: var(--accent); font-weight: 700; margin-bottom: 0.5rem; }
     .message { white-space: pre-wrap; line-height: 1.6; }
     .error { color: var(--danger); }
-    input {
-      background: #090d14;
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 8px;
-      padding: 0.7rem 0.85rem;
-      min-width: min(280px, 100%);
-    }
+    .hidden { display: none !important; }
     @media (max-width: 640px) {
       header, .card-head { align-items: flex-start; flex-direction: column; }
-      .actions { width: 100%; flex-wrap: wrap; }
-      button, a.button, input { width: 100%; }
+      .actions, .login-actions, .message-actions { width: 100%; flex-wrap: wrap; }
+      button, a.button { width: 100%; }
     }
   </style>
 </head>
@@ -103,32 +111,56 @@
       <h1>Messages Admin</h1>
       <div class="email">Sabri Portfolio Contact Inbox</div>
     </div>
-    <div class="actions">
-      <input id="adminKey" type="password" placeholder="Admin key optional" autocomplete="off" />
+    <div class="actions hidden" id="adminActions">
       <button class="primary" id="refreshBtn">Refresh</button>
+      <button id="logoutBtn">Logout</button>
       <a class="button" href="/">Site</a>
     </div>
   </header>
 
   <main>
-    <div class="status">
-      <span id="statusText">Loading messages...</span>
-      <span>Backend: <span id="backendText"></span></span>
-    </div>
-    <div class="grid" id="messagesGrid"></div>
+    <section class="login-panel" id="loginPanel">
+      <h2>Admin Login</h2>
+      <p>Use the admin username and password to view client messages.</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" placeholder="sabri fujo" required />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="Password" required />
+        </div>
+        <div class="login-actions">
+          <button class="primary" type="submit">Login</button>
+          <a class="button" href="/">Back to site</a>
+        </div>
+      </form>
+      <p class="error" id="loginError"></p>
+    </section>
+
+    <section class="hidden" id="inboxPanel">
+      <div class="status">
+        <span id="statusText">Loading messages...</span>
+        <span>Backend: <span id="backendText"></span></span>
+      </div>
+      <div class="grid" id="messagesGrid"></div>
+    </section>
   </main>
 
   <script>
     const BACKEND_URL = 'https://sabri-portfolio-backend.onrender.com';
     const grid = document.getElementById('messagesGrid');
     const statusText = document.getElementById('statusText');
-    const adminKeyInput = document.getElementById('adminKey');
+    const loginPanel = document.getElementById('loginPanel');
+    const inboxPanel = document.getElementById('inboxPanel');
+    const adminActions = document.getElementById('adminActions');
+    const loginError = document.getElementById('loginError');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
     document.getElementById('backendText').textContent = BACKEND_URL;
 
-    adminKeyInput.value = localStorage.getItem('sabriAdminKey') || '';
-    adminKeyInput.addEventListener('change', () => {
-      localStorage.setItem('sabriAdminKey', adminKeyInput.value.trim());
-    });
+    let credentials = JSON.parse(sessionStorage.getItem('sabriAdminCredentials') || 'null');
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({
@@ -140,6 +172,28 @@
       }[char]));
     }
 
+    function authHeaders() {
+      return {
+        'x-admin-username': credentials.username,
+        'x-admin-password': credentials.password
+      };
+    }
+
+    function showInbox() {
+      loginPanel.classList.add('hidden');
+      inboxPanel.classList.remove('hidden');
+      adminActions.classList.remove('hidden');
+    }
+
+    function showLogin(message = '') {
+      credentials = null;
+      sessionStorage.removeItem('sabriAdminCredentials');
+      loginPanel.classList.remove('hidden');
+      inboxPanel.classList.add('hidden');
+      adminActions.classList.add('hidden');
+      loginError.textContent = message;
+    }
+
     function renderMessages(messages) {
       if (!messages.length) {
         grid.innerHTML = '<div class="card empty">No messages yet. Submit a test message from the contact form.</div>';
@@ -147,13 +201,16 @@
       }
 
       grid.innerHTML = messages.map((item) => `
-        <article class="card">
+        <article class="card" data-id="${escapeHtml(item.id)}">
           <div class="card-head">
             <div>
               <div class="name">${escapeHtml(item.name)}</div>
               <div class="email">${escapeHtml(item.email)}</div>
             </div>
-            <div class="date">${new Date(item.createdAt).toLocaleString()}</div>
+            <div class="message-actions">
+              <div class="date">${new Date(item.createdAt).toLocaleString()}</div>
+              <button class="danger" data-delete-id="${escapeHtml(item.id)}">Delete</button>
+            </div>
           </div>
           <div class="subject">${escapeHtml(item.subject || 'Portfolio contact')}</div>
           <div class="message">${escapeHtml(item.message)}</div>
@@ -162,15 +219,16 @@
     }
 
     async function loadMessages() {
+      if (!credentials) return;
       statusText.textContent = 'Loading messages...';
       grid.innerHTML = '';
       try {
-        const headers = {};
-        const key = adminKeyInput.value.trim();
-        if (key) headers['x-admin-key'] = key;
-
-        const response = await fetch(`${BACKEND_URL}/api/messages`, { headers });
+        const response = await fetch(`${BACKEND_URL}/api/messages`, { headers: authHeaders() });
         const data = await response.json();
+        if (response.status === 401) {
+          showLogin(data.message || 'Please login again.');
+          return;
+        }
         if (!response.ok || !data.success) {
           throw new Error(data.message || 'Failed to load messages.');
         }
@@ -183,8 +241,73 @@
       }
     }
 
+    async function login(event) {
+      event.preventDefault();
+      loginError.textContent = '';
+      credentials = {
+        username: usernameInput.value.trim(),
+        password: passwordInput.value
+      };
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/admin/login`, {
+          method: 'POST',
+          headers: authHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Login failed.');
+        }
+
+        sessionStorage.setItem('sabriAdminCredentials', JSON.stringify(credentials));
+        passwordInput.value = '';
+        showInbox();
+        loadMessages();
+      } catch (error) {
+        showLogin(error.message);
+      }
+    }
+
+    async function deleteMessage(id, button) {
+      const ok = confirm('Delete this message?');
+      if (!ok) return;
+
+      button.disabled = true;
+      button.textContent = 'Deleting...';
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/messages/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: authHeaders()
+        });
+        const data = await response.json();
+        if (response.status === 401) {
+          showLogin(data.message || 'Please login again.');
+          return;
+        }
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Could not delete message.');
+        }
+        loadMessages();
+      } catch (error) {
+        alert(error.message);
+        button.disabled = false;
+        button.textContent = 'Delete';
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', login);
     document.getElementById('refreshBtn').addEventListener('click', loadMessages);
-    loadMessages();
+    document.getElementById('logoutBtn').addEventListener('click', () => showLogin(''));
+    grid.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-delete-id]');
+      if (!button) return;
+      deleteMessage(button.dataset.deleteId, button);
+    });
+
+    if (credentials && credentials.username && credentials.password) {
+      showInbox();
+      loadMessages();
+    }
   </script>
 </body>
 </html>

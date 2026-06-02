@@ -7,6 +7,8 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'sabri fujo';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sabri2026';
 const messages = [];
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
@@ -26,18 +28,15 @@ app.use(cors({
 }));
 
 function requireAdmin(req, res, next) {
-  if (!process.env.ADMIN_KEY) {
+  const username = req.get('x-admin-username');
+  const password = req.get('x-admin-password');
+
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     next();
     return;
   }
 
-  const providedKey = req.get('x-admin-key');
-  if (providedKey === process.env.ADMIN_KEY) {
-    next();
-    return;
-  }
-
-  res.status(401).json({ success: false, message: 'Unauthorized.' });
+  res.status(401).json({ success: false, message: 'Invalid admin username or password.' });
 }
 
 app.get('/', (req, res) => {
@@ -53,8 +52,22 @@ app.get('/health', (req, res) => {
   res.json({ success: true, service: 'sabri-portfolio-backend', timestamp: new Date().toISOString() });
 });
 
+app.post('/api/admin/login', requireAdmin, (req, res) => {
+  res.json({ success: true, message: 'Login successful.' });
+});
+
 app.get('/api/messages', requireAdmin, (req, res) => {
   res.json({ success: true, count: messages.length, messages });
+});
+
+app.delete('/api/messages/:id', requireAdmin, (req, res) => {
+  const index = messages.findIndex((item) => item.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: 'Message not found.' });
+  }
+
+  const [deleted] = messages.splice(index, 1);
+  res.json({ success: true, message: 'Message deleted.', data: deleted });
 });
 
 app.post(
