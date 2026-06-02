@@ -1580,8 +1580,8 @@ document.getElementById('contactForm').addEventListener('submit', async function
   const btn = document.getElementById('formSubmit');
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
-  document.getElementById('formSuccess').style.display = 'none';
-  document.getElementById('formError').style.display = 'none';
+  document.getElementById('formSuccess').className = 'form-notice';
+  document.getElementById('formError').className = 'form-notice';
 
   try {
     const res = await fetch(`${BACKEND_URL}/api/contact`, {
